@@ -26,65 +26,86 @@ The `/health` endpoint returns the service status and uptime in seconds.
 
 ## 4. Monitoring Implementation
 
-The `monitor.py` program checks all three services repeatedly.
+The `monitor.py` program checks all three services repeatedly using HTTPX.
+
+The monitoring configuration is:
 
 - Monitoring interval: 2 seconds (sleep after each monitoring round).
 - HTTP timeout: 1.5 seconds.
 - SLOW threshold: 500 milliseconds.
 - Maximum consecutive failures: 3.
 
-The monitor uses HTTPX to send requests and measure response times.
+The program measures the response time of each service and determines its health status.
 
 ## 5. Experiment 1: Normal Service Operation
 
-When all services were running normally, the monitor reported:
+When all three services were running, the monitor produced the following results:
 
-- Service 1: UP
-- Service 2: SLOW
-- Service 3: UP
+```text
+Service 1: UP | Response Time: 3.11 ms
+Service 2: SLOW | Response Time: 803.85 ms
+Service 3: UP | Response Time: 5.99 ms
+```
 
-Service 2 was intentionally configured with a delay of 0.8 seconds.
-
-Its measured response time was approximately 804–806 ms.
+Service 2 was intentionally configured with a delay of 0.8 seconds. Therefore, its response time exceeded the 500 ms threshold and it was classified as SLOW.
 
 ## 6. Experiment 2: Stopping a Service
 
-Service 1 was stopped using Ctrl+C.
+Service 1 was stopped using Ctrl+C while the monitoring program was running.
 
 The monitor detected consecutive failures:
 
-- First failure: SUSPECT (1/3)
-- Second failure: SUSPECT (2/3)
-- Third failure: DOWN
+```text
+Service 1: SUSPECT (1/3) | No response
+Service 1: SUSPECT (2/3) | No response
+Service 1: DOWN | No response
+```
 
-This confirms that the failure counter works correctly.
+The service was classified as DOWN after three consecutive failed checks.
+
+This mechanism helps avoid declaring a service unavailable because of one temporary failure.
 
 ## 7. Experiment 3: Restarting the Service
 
 After restarting Service 1 on port 8001, its health endpoint returned:
 
-`{"status":"ok","uptime":34.97}`
+```json
+{
+  "status": "ok",
+  "uptime": 34.97
+}
+```
 
-The monitor subsequently reported Service 1 as UP again.
+The monitor subsequently detected the service again:
+
+```text
+Service 1: UP | Response Time: 3.11 ms
+```
+
+This confirms that the monitoring system can detect service recovery after restarting it.
 
 ## 8. Experiment 4: Slow Service
 
-Service 2 was configured with a delay of 0.8 seconds.
+Service 2 was configured with a delay of 0.8 seconds using the `/health?delay=0.8` endpoint.
 
-The monitor consistently reported SLOW because its response time exceeded the 500 ms threshold.
+The monitor consistently reported SLOW because its response time was greater than 500 milliseconds.
 
-Services 1 and 3 remained UP during normal operation.
+Services 1 and 3 were UP during normal operation.
 
 ## 9. Failure Detection and Timeout
 
-The monitor uses a timeout of 1.5 seconds and requires three consecutive failed checks before marking a service as DOWN.
+The monitor uses an HTTP timeout of 1.5 seconds and requires three consecutive failed checks before marking a service as DOWN.
+
+The failure counter increases whenever a request fails. If the service responds successfully, the counter resets to zero.
 
 This approach reduces false alarms caused by temporary network problems.
 
-A shorter timeout detects failures faster but may produce false alarms. A longer timeout gives services more time to respond but delays failure detection.
+A shorter timeout detects failures faster but may incorrectly classify a slow service as unavailable. A longer timeout gives services more time to respond but delays failure detection.
 
 The monitor checks services sequentially. Therefore, a timeout on one service can delay checks of the following services.
 
 ## 10. Conclusion
 
-The assignment successfully demonstrates how to monitor multiple services, measure response times, detect slow services, identify unavailable services, and detect service recovery after restarting.
+This assignment demonstrates how to monitor multiple service instances using Python, FastAPI, and HTTPX.
+
+The monitoring system can measure response times, identify slow services, detect unavailable services after consecutive failures, and recognize when a stopped service becomes available again.
